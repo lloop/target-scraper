@@ -156,7 +156,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-
+fhistory
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -202,6 +202,7 @@ cython_debug/
 # .vscode/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
+.history/
 
 # Ruff stuff:
 .ruff_cache/
