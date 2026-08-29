@@ -279,7 +279,7 @@ def run_target_scraper(tcin_list, db_conn):
             locale="en-US",
             timezone_id="America/New_York"
         )
-        context.add_init_script(INTERSECTION_SCRIPT)
+        # context.add_init_script(INTERSECTION_SCRIPT)
 
         page = context.new_page()
         buffer = []
