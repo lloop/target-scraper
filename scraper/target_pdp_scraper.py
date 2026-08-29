@@ -283,10 +283,12 @@ def worker_task(tcin_chunk, result_queue, worker_id):
         browser.close()
 
 
-def db_writer_task(result_queue, stop_event):
+def db_writer_task(result_queue, stop_event, *args, **kwargs):
     """
-    Opens its own dedicated connection inside this thread to avoid 
-    SQLite cross-thread connection errors.
+    Dedicated background thread that opens its own connection 
+    to safely consume and write scraped batches to SQLite.
+    
+    *args captures any extra positional arguments passed by the execution context.
     """
     db_conn = get_db_connection()
     buffer = []
@@ -309,8 +311,7 @@ def db_writer_task(result_queue, stop_event):
             buffer.clear()
     finally:
         db_conn.close()
-        logger.info("Database writer connection closed.")
-        
+        logger.info("Database writer connection closed.")        
         
 def run_target_scraper(tcin_list, db_conn, num_workers=NUM_WORKERS):
     """Main entry point distributing TCIN queue across parallel Playwright workers."""
@@ -330,7 +331,7 @@ def run_target_scraper(tcin_list, db_conn, num_workers=NUM_WORKERS):
     # Start single-threaded DB writer listener
     writer_thread = threading.Thread(
         target=db_writer_task,
-        args=(db_conn, result_queue, stop_event)
+        args=(result_queue, stop_event)
     )
     writer_thread.start()
 
