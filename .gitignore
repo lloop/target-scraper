@@ -1,3 +1,11 @@
+# SQLite Database & Data Storage
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite3-journal
+data/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
