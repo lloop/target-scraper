@@ -2,21 +2,24 @@ import os
 import re
 import json
 import logging
+import queue
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from playwright.sync_api import sync_playwright
-
-try:
-    from playwright_stealth import Stealth
-    STEALTH_AVAILABLE = True
-except ImportError:
-    STEALTH_AVAILABLE = False
+from database.database import get_db_connection
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 BATCH_SIZE = 50
 REQUEST_DELAY = 0.5
+NUM_WORKERS = 4  # Adjust number of parallel browser contexts based on CPU/RAM
 
 INTERSECTION_SCRIPT = """
+    // Native webdriver mask
+    Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+
     const OriginalObserver = window.IntersectionObserver;
     window.IntersectionObserver = class extends OriginalObserver {
         constructor(callback, options) {
@@ -103,7 +106,8 @@ def save_batch_to_sqlite(db_conn, records):
     if not records:
         return
 
-    logger.info("Pushing batch of %d items to SQLite database...", len(records))
+    msg = f"[INFO] Pushing batch of {len(records)} items to SQLite database..."
+    logger.info(msg)
 
     sql = """
         INSERT INTO target_products (
@@ -143,9 +147,11 @@ def save_batch_to_sqlite(db_conn, records):
         cursor = db_conn.cursor()
         cursor.executemany(sql, formatted_records)
         db_conn.commit()
-        logger.info("Batch commit successful (%d items).", len(records))
+        success_msg = f"[INFO] Batch commit successful ({len(records)} items)."
+        logger.info(success_msg)
     except Exception as e:
-        logger.error("SQLite batch execution failed: %s", e)
+        err_msg = f"[ERROR] SQLite batch execution failed: {e}"
+        logger.error(err_msg)
         db_conn.rollback()
 
 
@@ -156,12 +162,12 @@ def scrape_single_tcin(page, tcin):
         page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
 
         try:
-            page.wait_for_selector('[data-test="product-price"]', timeout=10000)
+            page.wait_for_selector('[data-test="product-price"]', timeout=5000)
         except Exception:
             pass
 
         try:
-            page.wait_for_selector('[data-test="rating-card-overall-rating"], [data-test="ratings-count"]', timeout=5000)
+            page.wait_for_selector('[data-test="rating-card-overall-rating"], [data-test="ratings-count"]', timeout=3000)
         except Exception:
             pass
 
@@ -213,6 +219,12 @@ def scrape_single_tcin(page, tcin):
         formatted_price = dom_data.get("formatted_price")
         price_num = float(re.search(r"[\d\.]+", formatted_price).group(0)) if formatted_price and re.search(r"[\d\.]+", formatted_price) else None
 
+        # --- VALIDATION GUARD ---
+        if title is None and formatted_price is None and brand is None:
+            warn_msg = f"[WARNING] TCIN {tcin} returned empty attributes (Unavailable Page). Excluding from DB batch."
+            logger.warning(warn_msg)
+            return None
+
         return {
             "tcin": tcin,
             "title": title,
@@ -227,46 +239,111 @@ def scrape_single_tcin(page, tcin):
         }
 
     except Exception as e:
-        logger.error("Failed to scrape TCIN %s: %s", tcin, e)
+        err_msg = f"[ERROR] Failed to scrape TCIN {tcin}: {e}"
+        logger.error(err_msg)
         return None
 
 
-def run_target_scraper(tcin_list, db_conn):
-    """
-    Main entry point to import into your master project script.
+def worker_task(tcin_chunk, result_queue, worker_id):
+    """Isolated Playwright worker thread running its own browser context."""
+    logger.info(f"Worker-{worker_id} started with {len(tcin_chunk)} TCINs.")
     
-    :param tcin_list: List of TCIN string IDs to scrape
-    :param db_conn: Active sqlite3 connection object managed by your project architecture
-    """
-    playwright_cm = Stealth().use_sync(sync_playwright()) if STEALTH_AVAILABLE else sync_playwright()
-
-    with playwright_cm as p:
-        browser = p.chromium.launch(headless=True)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-setuid-sandbox"
+            ]
+        )
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             viewport={"width": 1280, "height": 800},
+            locale="en-US",
+            timezone_id="America/New_York"
         )
         context.add_init_script(INTERSECTION_SCRIPT)
-
         page = context.new_page()
-        buffer = []
 
-        for index, tcin in enumerate(tcin_list, 1):
-            logger.info("[%d/%d] Scraping TCIN: %s", index, len(tcin_list), tcin)
-            
+        for index, tcin in enumerate(tcin_chunk, 1):
+            status_msg = f"Worker-{worker_id} [{index}/{len(tcin_chunk)}] Processing TCIN: {tcin}"
+            logger.info(status_msg)
+
             data = scrape_single_tcin(page, tcin)
-            if data:
-                buffer.append(data)
 
-            if len(buffer) >= BATCH_SIZE:
-                save_batch_to_sqlite(db_conn, buffer)
-                buffer.clear()
+            if data and (data.get("title") or data.get("formatted_price") or data.get("brand")):
+                result_queue.put(data)
+            else:
+                skip_msg = f"Worker-{worker_id} [SKIP] TCIN {tcin} excluded from database insert buffer."
+                logger.info(skip_msg)
 
             time.sleep(REQUEST_DELAY)
 
-        # Flush any remaining items in the buffer
+        browser.close()
+
+
+def db_writer_task(result_queue, stop_event):
+    """
+    Opens its own dedicated connection inside this thread to avoid 
+    SQLite cross-thread connection errors.
+    """
+    db_conn = get_db_connection()
+    buffer = []
+
+    try:
+        while not stop_event.is_set() or not result_queue.empty():
+            try:
+                item = result_queue.get(timeout=0.5)
+                buffer.append(item)
+                result_queue.task_done()
+
+                if len(buffer) >= BATCH_SIZE:
+                    save_batch_to_sqlite(db_conn, buffer)
+                    buffer.clear()
+            except queue.Empty:
+                continue
+
         if buffer:
             save_batch_to_sqlite(db_conn, buffer)
             buffer.clear()
+    finally:
+        db_conn.close()
+        logger.info("Database writer connection closed.")
+        
+        
+def run_target_scraper(tcin_list, db_conn, num_workers=NUM_WORKERS):
+    """Main entry point distributing TCIN queue across parallel Playwright workers."""
+    if not tcin_list:
+        logger.info("No TCINs provided to run_target_scraper.")
+        return
 
-        browser.close()
+    logger.info(f"Starting parallel PDP scraper with {num_workers} workers for {len(tcin_list)} items.")
+
+    result_queue = queue.Queue()
+    stop_event = threading.Event()
+
+    # Split TCIN list into chunks for each worker
+    chunks = [tcin_list[i::num_workers] for i in range(num_workers)]
+    chunks = [c for c in chunks if c]  # Drop empty chunks if any
+
+    # Start single-threaded DB writer listener
+    writer_thread = threading.Thread(
+        target=db_writer_task,
+        args=(db_conn, result_queue, stop_event)
+    )
+    writer_thread.start()
+
+    # Launch Playwright browser threads
+    with ThreadPoolExecutor(max_workers=len(chunks)) as executor:
+        futures = [
+            executor.submit(worker_task, chunk, result_queue, i + 1)
+            for i, chunk in enumerate(chunks)
+        ]
+        for future in futures:
+            future.result()
+
+    # Wait for DB queue to flush before finishing
+    stop_event.set()
+    writer_thread.join()
+    logger.info("All parallel scraper tasks complete.")
