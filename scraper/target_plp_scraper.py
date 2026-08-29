@@ -28,18 +28,16 @@ INTERSECTION_SCRIPT = """
     };
 """
 
-
-def extract_tcins_from_next_data(next_data: dict) -> Set[str]:
-    """Extract all TCINs present in the __NEXT_DATA__ window state."""
+def extract_tcins_from_json(data_obj) -> Set[str]:
+    """Extract TCINs recursively or via string matching from any JSON dict."""
     tcins = set()
-    data_str = str(next_data)
+    data_str = str(data_obj)
     found = re.findall(r'"tcin"\s*:\s*"(\d+)"', data_str)
     tcins.update(found)
     return tcins
 
-
-def scrape_category_tcins(category_url: str, max_scrolls: int = 3) -> List[str]:
-    """Navigates to a Target category URL and extracts all visible TCINs."""
+def scrape_category_tcins(category_url: str, target_count: int = 10) -> List[str]:
+    """Navigates to a Target category URL and extracts at least target_count TCINs."""
     tcins: Set[str] = set()
 
     with sync_playwright() as p:
@@ -60,33 +58,56 @@ def scrape_category_tcins(category_url: str, max_scrolls: int = 3) -> List[str]:
         context.add_init_script(INTERSECTION_SCRIPT)
         page = context.new_page()
 
+        # Sniff network requests for RedSky product batches arriving dynamically
+        def handle_response(response):
+            if "redsky" in response.url or "graphql" in response.url:
+                try:
+                    json_body = response.json()
+                    new_tcins = extract_tcins_from_json(json_body)
+                    tcins.update(new_tcins)
+                except Exception:
+                    pass
+
+        page.on("response", handle_response)
+
         try:
             logger.info("Opening Category URL: %s", category_url)
-            page.goto(category_url, wait_until="domcontentloaded", timeout=30000)
+            page.goto(category_url, wait_until="networkidle", timeout=30000)
 
+            # Extract static initial payload TCINs
             next_data = page.evaluate("() => window.__NEXT_DATA__ || {}")
-            initial_tcins = extract_tcins_from_next_data(next_data)
-            tcins.update(initial_tcins)
-            logger.info("Found %d initial TCINs in page JSON", len(initial_tcins))
+            tcins.update(extract_tcins_from_json(next_data))
+            logger.info("Found %d initial TCINs", len(tcins))
 
-            for scroll in range(max_scrolls):
-                page.mouse.wheel(0, 1500)
-                page.wait_for_timeout(1000)
+            # Scroll loop to force dynamic loading until target_count is reached
+            scroll_attempts = 0
+            max_attempts = 10
 
-            hrefs = page.evaluate("""() => {
-                const links = Array.from(document.querySelectorAll('a[href*="/p/"]'));
-                return links.map(l => l.href);
-            }""")
+            while len(tcins) < target_count and scroll_attempts < max_attempts:
+                scroll_attempts += 1
+                
+                # Scroll down in increments to trigger lazy loaders
+                page.evaluate("window.scrollBy(0, 1200)")
+                page.wait_for_timeout(1500)
 
-            for href in hrefs:
-                match = re.search(r"A-(\d+)", href)
-                if match:
-                    tcins.add(match.group(1))
+                # Check DOM hrefs for /p/ links
+                hrefs = page.evaluate("""() => {
+                    const links = Array.from(document.querySelectorAll('a[href*="/p/"]'));
+                    return links.map(l => l.href);
+                }""")
+
+                for href in hrefs:
+                    match = re.search(r"A-(\d+)", href)
+                    if match:
+                        tcins.add(match.group(1))
+
+                logger.info("Scroll %d: Collected %d TCINs so far", scroll_attempts, len(tcins))
 
         except Exception as e:
             logger.error("Failed to extract TCINs from category page: %s", e)
         finally:
             browser.close()
 
-    logger.info("Total unique TCINs extracted from category: %d", len(tcins))
-    return list(tcins)
+    result = list(tcins)[:target_count]
+    logger.info("Total TCINs returned: %d", len(result))
+    return result

@@ -16,7 +16,7 @@ def main():
 
     # 2. Discover list of TCINs from category level
     logging.info("Extracting TCIN catalog from PLP: %s", category_url)
-    tcins_to_scrape = scrape_category_tcins(category_url, max_scrolls=3)
+    tcins_to_scrape = scrape_category_tcins(category_url, target_count=20)
 
     if not tcins_to_scrape:
         logging.warning("No TCINs were discovered from the category page. Exiting pipeline.")
