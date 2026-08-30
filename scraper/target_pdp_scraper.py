@@ -106,14 +106,15 @@ def save_batch_to_sqlite(db_conn, records):
 
     sql = """
         INSERT INTO target_products (
-            tcin, title, brand, price, formatted_price, 
+            tcin, title, brand, price, formatted_price, in_stock,
             rating, review_count, primary_image, description, sample_reviews
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tcin) DO UPDATE SET
             title = excluded.title,
             brand = excluded.brand,
             price = excluded.price,
             formatted_price = excluded.formatted_price,
+            in_stock = excluded.in_stock,
             rating = excluded.rating,
             review_count = excluded.review_count,
             primary_image = excluded.primary_image,
@@ -129,6 +130,7 @@ def save_batch_to_sqlite(db_conn, records):
             item["brand"],
             item["price"],
             item["formatted_price"],
+            item["in_stock"],
             item["rating"],
             item["review_count"],
             item["primary_image"],
@@ -181,14 +183,20 @@ def scrape_single_tcin(page, tcin):
             }
 
             const imgEl = document.querySelector('img[data-test="@web/ProductImage/PrimaryImage"]') ||
-                          document.querySelector('div[data-test="product-image"] img') ||
-                          document.querySelector('picture img');
+                        document.querySelector('div[data-test="product-image"] img') ||
+                        document.querySelector('picture img');
+
+            // Out-of-stock detection: explicit soldOut text node, or absence of a live add-to-cart button
+            const soldOutEl = document.querySelector('[data-test="soldOutText"], [data-test="outOfStockMessage"]'); 
+            const addToCartEl = document.querySelector('[data-test="shippingButton"], [data-test="orderPickupButton"], button[data-test="addToCartButton"]');
+            const isSoldOut = !!soldOutEl || (priceText === null && !addToCartEl);
 
             return {
                 formatted_price: priceText,
                 image_url: imgEl ? imgEl.src : null,
                 rating_raw: getTxt('[data-test="rating-card-overall-rating"]') || getTxt('[data-test="ratings-count"]'),
-                reviews_raw: getTxt('[data-test="review-count"]') || getTxt('[data-test="ratings-count"]')
+                reviews_raw: getTxt('[data-test="review-count"]') || getTxt('[data-test="ratings-count"]'),
+                in_stock: !isSoldOut
             };
         }""")
 
@@ -243,6 +251,7 @@ def scrape_single_tcin(page, tcin):
             "brand": brand,
             "price": price_num,
             "formatted_price": formatted_price,
+            "in_stock": dom_data.get("in_stock", True),
             "rating": rating_val,
             "review_count": review_count_val,
             "primary_image": dom_data.get("image_url"),
@@ -256,13 +265,13 @@ def scrape_single_tcin(page, tcin):
         return None
 
 
-def run_target_scraper(tcin_list, db_conn):
+def run_target_scraper(tcin_list, db_conn, store_id="3263", zip_code="19146"):
     """Main entry point running sequential PDP extraction on a single Playwright instance."""
     if not tcin_list:
         logger.info("No TCINs provided to run_target_scraper.")
         return
 
-    logger.info(f"Starting sequential PDP scraper for {len(tcin_list)} items.")
+    logger.info(f"Starting sequential PDP scraper for {len(tcin_list)} items (Store ID: {store_id}, Zip: {zip_code}).")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -279,7 +288,16 @@ def run_target_scraper(tcin_list, db_conn):
             locale="en-US",
             timezone_id="America/New_York"
         )
-        # context.add_init_script(INTERSECTION_SCRIPT)
+        
+        # Inject guest_location cookie so prices and stock availability mirror target store
+        context.add_cookies([{
+            "name": "guest_location",
+            "value": f"{zip_code}%7C{store_id}%7C%7C%7C",
+            "domain": ".target.com",
+            "path": "/"
+        }])
+
+        context.add_init_script(INTERSECTION_SCRIPT)
 
         page = context.new_page()
         buffer = []

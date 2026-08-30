@@ -14,7 +14,12 @@ Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
 window.chrome = { runtime: {} };
 """
 
-def scrape_category_tcins(category_url: str, target_count: int = 200) -> List[str]:
+def scrape_category_tcins(
+    category_url: str, 
+    target_count: int = 200, 
+    store_id: str = "3263", 
+    zip_code: str = "19146"
+) -> List[str]:
     tcins: Set[str] = set()
     page_size = 24
     captured = {}
@@ -33,6 +38,17 @@ def scrape_category_tcins(category_url: str, target_count: int = 200) -> List[st
             locale="en-US",
             timezone_id="America/New_York",
         )
+        
+        # Inject store location cookie directly into context before page load
+        context.add_cookies([
+            {
+                "name": "guest_location",
+                "value": f"{zip_code}%7C{store_id}%7C%7C%7C",
+                "domain": ".target.com",
+                "path": "/"
+            }
+        ])
+
         context.add_init_script(STEALTH_INIT_SCRIPT)
         page = context.new_page()
 
@@ -61,7 +77,14 @@ def scrape_category_tcins(category_url: str, target_count: int = 200) -> List[st
 
         offset = 0
         while len(tcins) < target_count:
-            params = {**captured, "offset": str(offset), "count": str(page_size)}
+            # Overrides pricing_store_id dynamically with the passed store_id parameter
+            params = {
+                **captured, 
+                "pricing_store_id": str(store_id), 
+                "zip": str(zip_code),
+                "offset": str(offset), 
+                "count": str(page_size)
+            }
             query = "&".join(f"{k}={v}" for k, v in params.items())
             url = f"https://redsky.target.com/redsky_aggregations/v1/web/plp_search_v2?{query}"
 
@@ -103,7 +126,6 @@ def scrape_category_tcins(category_url: str, target_count: int = 200) -> List[st
     return list(tcins)[:target_count]
 
 
-
 def extract_tcins_from_plp(data_obj) -> List[str]:
     products = (
         (data_obj.get("data") or {})
@@ -117,4 +139,3 @@ def extract_tcins_from_plp(data_obj) -> List[str]:
         if isinstance(product, dict)
         and str(product.get("tcin", "")).isdigit()
     ]
-

@@ -18,12 +18,13 @@ def get_db_connection() -> sqlite3.Connection:
             brand TEXT,
             price REAL,
             formatted_price TEXT,
+            in_stock BOOLEAN,
             rating REAL,
             review_count INTEGER,
             primary_image TEXT,
             description TEXT,
             sample_reviews TEXT,
-            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
     )
