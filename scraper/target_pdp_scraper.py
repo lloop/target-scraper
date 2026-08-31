@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 BATCH_SIZE = 50
-# REQUEST_DELAY = 0.5
 
 INTERSECTION_SCRIPT = """
     // Native webdriver mask

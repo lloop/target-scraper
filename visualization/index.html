@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Target Scraper 3D Price Cloud</title>
+
+  <!-- 1. IMPORT MAP MUST COME FIRST IN THE <HEAD> -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <style>
+    body { margin: 0; background: #0f172a; font-family: system-ui, sans-serif; overflow: hidden; }
+    #canvas-container { width: 100vw; height: 100vh; }
+    #tooltip {
+      position: absolute; display: none; background: rgba(15, 23, 42, 0.95);
+      color: #fff; padding: 10px 14px; border-radius: 6px; border: 1px solid #334155;
+      font-size: 13px; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="canvas-container"></div>
+  <div id="tooltip"></div>
+
+  <!-- 2. MODULE LOADER COMES AFTER IMPORT MAP -->
+  <script type="module">
+    import { fetchNormalizedData } from './dataAdapter.js';
+    import { render3DScatterPlot } from './threeScatter.js';
+
+    async function init() {
+      try {
+        const data = await fetchNormalizedData();
+        render3DScatterPlot('canvas-container', data);
+      } catch (err) {
+        console.error("Failed to load visualization data:", err);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

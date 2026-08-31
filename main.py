@@ -1,7 +1,10 @@
 import logging
 from database.database import get_db_connection
 from scraper.target_plp_scraper import scrape_category_tcins
-from scraper.target_pdp_scraper import run_target_scraper
+from scraper.target_pdp_scraper import (
+    run_target_scraper,
+    filter_tcins_needing_update,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -13,16 +16,19 @@ logger = logging.getLogger(__name__)
 # Target Philadelphia Snyder Ave - 1443
 TARGET_STORE_ID = "1443" 
 TARGET_ZIP_CODE = "19148"
-TARGET_TCIN_COUNT = 0
+TARGET_TCIN_COUNT = 10
 CATEGORIES = [
     {"name": "produce", "url": "https://www.target.com/c/produce-grocery/-/N-u7fty"},
-    {"name": "bakery", "url": "https://www.target.com/c/bakery-bread-grocery/-/N-5xt19"},
-    {"name": "snacks", "url": "https://www.target.com/c/snacks-grocery/-/N-5xsy9"},
-    {"name": "frozen", "url": "https://www.target.com/c/frozen-foods-grocery/-/N-5xszd"},
-    {"name": "meat", "url": "https://www.target.com/c/fresh-meat-seafood-grocery/-/N-5xsyh"},
-    {"name": "beverages", "url": "https://www.target.com/c/beverages-grocery/-/N-5xt0r"},
-    {"name": "pantry", "url": "https://www.target.com/c/pantry-grocery/-/N-5xt13"},
 ]
+# CATEGORIES = [
+#     {"name": "produce", "url": "https://www.target.com/c/produce-grocery/-/N-u7fty"},
+#     {"name": "bakery", "url": "https://www.target.com/c/bakery-bread-grocery/-/N-5xt19"},
+#     {"name": "snacks", "url": "https://www.target.com/c/snacks-grocery/-/N-5xsy9"},
+#     {"name": "frozen", "url": "https://www.target.com/c/frozen-foods-grocery/-/N-5xszd"},
+#     {"name": "meat", "url": "https://www.target.com/c/fresh-meat-seafood-grocery/-/N-5xsyh"},
+#     {"name": "beverages", "url": "https://www.target.com/c/beverages-grocery/-/N-5xt0r"},
+#     {"name": "pantry", "url": "https://www.target.com/c/pantry-grocery/-/N-5xt13"},
+# ]
 
 
 def run_pipeline(category):
@@ -41,12 +47,30 @@ def run_pipeline(category):
         if not tcins:
             logger.warning("No TCINs discovered. Exiting pipeline early.")
             return
+        
+        logger.info("Harvested %d TCINs. Checking database freshness...", len(tcins))
+
+        tcins_to_scrape = filter_tcins_needing_update(
+            db_conn=db_conn,
+            tcin_list=tcins,
+            max_age_days=7,
+        )
+
+        if not tcins_to_scrape:
+            logger.info("All harvested TCINs were updated within the last 7 days. Nothing to scrape.")
+            return
+
+        logger.info(
+            "Filtered %d TCINs down to %d that need scraping.",
+            len(tcins),
+            len(tcins_to_scrape),
+        )
 
         logger.info("Harvested %d TCINs. Executing PDP extraction...", len(tcins))
 
         # Step 2: PDP Extraction & Persistence
         run_target_scraper(
-            tcin_list=tcins,
+            tcin_list=tcins_to_scrape,
             db_conn=db_conn,
             category=category["name"],
             store_id=TARGET_STORE_ID,
