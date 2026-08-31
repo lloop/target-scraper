@@ -3,13 +3,14 @@ import re
 import json
 import logging
 import time
+import random
 from playwright.sync_api import sync_playwright
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 BATCH_SIZE = 50
-REQUEST_DELAY = 0.5
+# REQUEST_DELAY = 0.5
 
 INTERSECTION_SCRIPT = """
     // Native webdriver mask
@@ -33,7 +34,6 @@ INTERSECTION_SCRIPT = """
         }
     };
 """
-
 
 def find_key_recursive(data, target_key):
     """Recursively search a JSON dictionary/list for a specific key."""
@@ -106,10 +106,11 @@ def save_batch_to_sqlite(db_conn, records):
 
     sql = """
         INSERT INTO target_products (
-            tcin, title, brand, price, formatted_price, in_stock,
+            tcin, category, title, brand, price, formatted_price, in_stock,
             rating, review_count, primary_image, description, sample_reviews
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tcin) DO UPDATE SET
+            category = excluded.category,
             title = excluded.title,
             brand = excluded.brand,
             price = excluded.price,
@@ -126,6 +127,7 @@ def save_batch_to_sqlite(db_conn, records):
     formatted_records = [
         (
             item["tcin"],
+            item["category"],
             item["title"],
             item["brand"],
             item["price"],
@@ -265,7 +267,7 @@ def scrape_single_tcin(page, tcin):
         return None
 
 
-def run_target_scraper(tcin_list, db_conn, store_id="3263", zip_code="19146"):
+def run_target_scraper(tcin_list, category, db_conn, store_id="3263", zip_code="19146"):
     """Main entry point running sequential PDP extraction on a single Playwright instance."""
     if not tcin_list:
         logger.info("No TCINs provided to run_target_scraper.")
@@ -307,6 +309,8 @@ def run_target_scraper(tcin_list, db_conn, store_id="3263", zip_code="19146"):
             logger.info(status_msg)
 
             data = scrape_single_tcin(page, tcin)
+            
+            data["category"] = category
 
             if data and (data.get("title") or data.get("formatted_price") or data.get("brand")):
                 buffer.append(data)
@@ -318,7 +322,7 @@ def run_target_scraper(tcin_list, db_conn, store_id="3263", zip_code="19146"):
                 save_batch_to_sqlite(db_conn, buffer)
                 buffer.clear()
 
-            time.sleep(REQUEST_DELAY)
+            time.sleep(random.uniform(2.5, 5.5))
 
         if buffer:
             save_batch_to_sqlite(db_conn, buffer)
@@ -327,3 +331,34 @@ def run_target_scraper(tcin_list, db_conn, store_id="3263", zip_code="19146"):
         browser.close()
 
     logger.info("Sequential scraper tasks complete.")
+    
+    
+def filter_tcins_needing_update(db_conn, tcin_list, max_age_days=7):
+    """
+    Filters out TCINs that were updated within the last `max_age_days`.
+    Scrapes missing items OR items with stale prices.
+    """
+    if not tcin_list:
+        return []
+
+    placeholders = ",".join(["?"] * len(tcin_list))
+    
+    # Query TCINs updated recently (using SQLite date functions)
+    sql = f"""
+        SELECT tcin 
+        FROM target_products 
+        WHERE tcin IN ({placeholders})
+          AND updated_at >= datetime('now', '-{max_age_days} days')
+    """
+    
+    cursor = db_conn.cursor()
+    cursor.execute(sql, tcin_list)
+    fresh_tcins = set(row[0] for row in cursor.fetchall())
+    
+    # Keep items that are completely new OR stale
+    to_scrape = [tcin for tcin in tcin_list if tcin not in fresh_tcins]
+    
+    logger.info(
+        f"[DEDUP] Input: {len(tcin_list)} | Fresh (<{max_age_days}d): {len(fresh_tcins)} | Need Scrape: {len(to_scrape)}"
+    )
+    return to_scrape

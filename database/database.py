@@ -14,6 +14,7 @@ def get_db_connection() -> sqlite3.Connection:
         """
         CREATE TABLE IF NOT EXISTS target_products (
             tcin TEXT PRIMARY KEY,
+            category TEXT,
             title TEXT,
             brand TEXT,
             price REAL,
