@@ -34,6 +34,14 @@ INTERSECTION_SCRIPT = """
     };
 """
 
+def block_unneeded_assets(route):
+    """Network route handler to abort media assets and speed up PDP extractions."""
+    if route.request.resource_type in ["image", "stylesheet", "font", "media"]:
+        route.abort()
+    else:
+        route.continue_()
+
+
 def find_key_recursive(data, target_key):
     """Recursively search a JSON dictionary/list for a specific key."""
     if isinstance(data, dict):
@@ -297,6 +305,9 @@ def run_target_scraper(tcin_list, category, db_conn, store_id="3263", zip_code="
             "domain": ".target.com",
             "path": "/"
         }])
+
+        # Route-level asset blocking for faster PDP loads
+        context.route("**/*", block_unneeded_assets)
 
         context.add_init_script(INTERSECTION_SCRIPT)
 

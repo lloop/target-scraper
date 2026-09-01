@@ -26,6 +26,7 @@ def scrape_category_tcins(
     page_size = 24
     captured = {}
 
+    # Seperate browser instances in plp and pdp scrapers because plp needs a headed
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=False,
