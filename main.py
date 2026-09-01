@@ -16,19 +16,19 @@ logger = logging.getLogger(__name__)
 # Target Philadelphia Snyder Ave - 1443
 TARGET_STORE_ID = "1443" 
 TARGET_ZIP_CODE = "19148"
-TARGET_TCIN_COUNT = 10
-CATEGORIES = [
-    {"name": "produce", "url": "https://www.target.com/c/produce-grocery/-/N-u7fty"},
-]
+TARGET_TCIN_COUNT = 0
 # CATEGORIES = [
 #     {"name": "produce", "url": "https://www.target.com/c/produce-grocery/-/N-u7fty"},
-#     {"name": "bakery", "url": "https://www.target.com/c/bakery-bread-grocery/-/N-5xt19"},
-#     {"name": "snacks", "url": "https://www.target.com/c/snacks-grocery/-/N-5xsy9"},
-#     {"name": "frozen", "url": "https://www.target.com/c/frozen-foods-grocery/-/N-5xszd"},
-#     {"name": "meat", "url": "https://www.target.com/c/fresh-meat-seafood-grocery/-/N-5xsyh"},
-#     {"name": "beverages", "url": "https://www.target.com/c/beverages-grocery/-/N-5xt0r"},
-#     {"name": "pantry", "url": "https://www.target.com/c/pantry-grocery/-/N-5xt13"},
 # ]
+CATEGORIES = [
+    {"name": "produce", "url": "https://www.target.com/c/produce-grocery/-/N-u7fty"},
+    {"name": "bakery", "url": "https://www.target.com/c/bakery-bread-grocery/-/N-5xt19"},
+    {"name": "snacks", "url": "https://www.target.com/c/snacks-grocery/-/N-5xsy9"},
+    {"name": "frozen", "url": "https://www.target.com/c/frozen-foods-grocery/-/N-5xszd"},
+    {"name": "meat", "url": "https://www.target.com/c/fresh-meat-seafood-grocery/-/N-5xsyh"},
+    {"name": "beverages", "url": "https://www.target.com/c/beverages-grocery/-/N-5xt0r"},
+    {"name": "pantry", "url": "https://www.target.com/c/pantry-grocery/-/N-5xt13"},
+]
 
 
 def run_pipeline(category):
@@ -53,11 +53,11 @@ def run_pipeline(category):
         tcins_to_scrape = filter_tcins_needing_update(
             db_conn=db_conn,
             tcin_list=tcins,
-            max_age_days=7,
+            max_age_days=30,
         )
 
         if not tcins_to_scrape:
-            logger.info("All harvested TCINs were updated within the last 7 days. Nothing to scrape.")
+            logger.info("All harvested TCINs were updated within the last 30 days. Nothing to scrape.")
             return
 
         logger.info(

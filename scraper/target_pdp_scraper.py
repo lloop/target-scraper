@@ -309,12 +309,12 @@ def run_target_scraper(tcin_list, category, db_conn, store_id="3263", zip_code="
 
             data = scrape_single_tcin(page, tcin)
             
-            data["category"] = category
-
+            # Check if data is valid 
             if data and (data.get("title") or data.get("formatted_price") or data.get("brand")):
+                data["category"] = category 
                 buffer.append(data)
             else:
-                skip_msg = f"[SKIP] TCIN {tcin} excluded from database insert buffer."
+                skip_msg = f"[SKIP] TCIN {tcin} excluded from database insert buffer (failed or empty)."
                 logger.info(skip_msg)
 
             if len(buffer) >= BATCH_SIZE:

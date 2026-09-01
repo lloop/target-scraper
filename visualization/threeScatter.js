@@ -4,6 +4,33 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
+// Helper: Simple camera-facing text label
+function createAxisTitle(text, color) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 512;
+  canvas.height = 128;
+
+  ctx.fillStyle = color;
+  ctx.font = 'Bold 44px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 256, 64);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  
+  const spriteMaterial = new THREE.SpriteMaterial({ 
+    map: texture,
+    transparent: true,
+    depthTest: false 
+  });
+  
+  const sprite = new THREE.Sprite(spriteMaterial);
+  sprite.scale.set(12, 3, 1);
+  return sprite;
+}
+
 export function render3DScatterPlot(containerId, dataPoints) {
   const container = document.getElementById(containerId);
   const width = container.clientWidth;
@@ -34,6 +61,42 @@ export function render3DScatterPlot(containerId, dataPoints) {
   const gridHelper = new THREE.GridHelper(40, 20, 0x475569, 0x1e293b);
   gridHelper.position.y = -15;
   scene.add(gridHelper);
+
+  // Color-coded Axes (RGB = XYZ)
+  
+  // X-Axis (Price) -> RED
+  const xGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-20, -15, -20),
+    new THREE.Vector3(20, -15, -20)
+  ]);
+  scene.add(new THREE.Line(xGeo, new THREE.LineBasicMaterial({ color: 0xef4444, linewidth: 3 })));
+
+  // Y-Axis (Rating) -> GREEN
+  const yGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-20, -15, -20),
+    new THREE.Vector3(-20, 15, -20)
+  ]);
+  scene.add(new THREE.Line(yGeo, new THREE.LineBasicMaterial({ color: 0x22c55e, linewidth: 3 })));
+
+  // Z-Axis (Reviews) -> BLUE
+  const zGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-20, -15, -20),
+    new THREE.Vector3(-20, -15, 20)
+  ]);
+  scene.add(new THREE.Line(zGeo, new THREE.LineBasicMaterial({ color: 0x3b82f6, linewidth: 3 })));
+
+  // 3D Axis Labels
+  const labelX = createAxisTitle("PRICE →", "#ef4444");
+  labelX.position.set(24, -15, -20);
+  scene.add(labelX);
+
+  const labelY = createAxisTitle("RATING ↑", "#22c55e");
+  labelY.position.set(-20, 18, -20);
+  scene.add(labelY);
+
+  const labelZ = createAxisTitle("REVIEWS ↗", "#3b82f6");
+  labelZ.position.set(-20, -15, 24);
+  scene.add(labelZ);
 
   // 4. Generate 3D Data Cubes
   const geometry = new THREE.BoxGeometry(1.2, 1.2, 1.2);

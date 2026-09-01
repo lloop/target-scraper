@@ -4,33 +4,157 @@
   <meta charset="UTF-8">
   <title>Target Scraper 3D Price Cloud</title>
 
-  <!-- 1. IMPORT MAP MUST COME FIRST IN THE <HEAD> -->
+  <!-- 1. Import map must come first in the <head> -->
   <script type="importmap">
     {
       "imports": {
-        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
       }
     }
   </script>
 
   <style>
-    body { margin: 0; background: #0f172a; font-family: system-ui, sans-serif; overflow: hidden; }
-    #canvas-container { width: 100vw; height: 100vh; }
+    body {
+      margin: 0;
+      background: #0f172a;
+      font-family: system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+      color: #fff;
+    }
+    
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* Hover Tooltip Overlay */
     #tooltip {
-      position: absolute; display: none; background: rgba(15, 23, 42, 0.95);
-      color: #fff; padding: 10px 14px; border-radius: 6px; border: 1px solid #334155;
-      font-size: 13px; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      position: absolute;
+      display: none;
+      background: rgba(15, 23, 42, 0.95);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 6px;
+      border: 1px solid #334155;
+      font-size: 13px;
+      pointer-events: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
       line-height: 1.5;
+      z-index: 100;
+    }
+
+    /* Floating Legend Panel */
+    #legend-panel {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 16px;
+      width: 240px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      z-index: 10;
+    }
+    
+    #legend-panel h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+    }
+    
+    .legend-section {
+      margin-bottom: 12px;
+      font-size: 12px;
+    }
+
+    .legend-title {
+      font-weight: 600;
+      color: #cbd5e1;
+      margin-bottom: 6px;
+    }
+    
+    /* Category Color Swatches */
+    .color-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .color-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      text-transform: capitalize;
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+
+    /* Axis Color Legend */
+    .axis-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      color: #94a3b8;
+    }
+
+    .axis-list li {
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .axis-indicator {
+      width: 12px;
+      height: 3px;
+      border-radius: 2px;
+      display: inline-block;
     }
   </style>
 </head>
 <body>
 
+  <!-- Floating HUD Index -->
+  <div id="legend-panel">
+    <h3>Data Index</h3>
+
+    <div class="legend-section">
+      <div class="legend-title">3D Axes</div>
+      <ul class="axis-list">
+        <li><span class="axis-indicator" style="background: #ef4444;"></span> <strong>Red:</strong> Price ($0–$50)</li>
+        <li><span class="axis-indicator" style="background: #22c55e;"></span> <strong>Green:</strong> Rating (1–5 ★)</li>
+        <li><span class="axis-indicator" style="background: #3b82f6;"></span> <strong>Blue:</strong> Reviews (0–500)</li>
+      </ul>
+    </div>
+
+    <div class="legend-section">
+      <div class="legend-title">Categories</div>
+      <div class="color-grid">
+        <div class="color-item"><span class="swatch" style="background: #2ecc71;"></span> Produce</div>
+        <div class="color-item"><span class="swatch" style="background: #e74c3c;"></span> Meat</div>
+        <div class="color-item"><span class="swatch" style="background: #f1c40f;"></span> Bakery</div>
+        <div class="color-item"><span class="swatch" style="background: #3498db;"></span> Snacks</div>
+        <div class="color-item"><span class="swatch" style="background: #9b59b6;"></span> Frozen</div>
+        <div class="color-item"><span class="swatch" style="background: #95a5a6;"></span> Other</div>
+      </div>
+    </div>
+  </div>
+
   <div id="canvas-container"></div>
   <div id="tooltip"></div>
 
-  <!-- 2. MODULE LOADER COMES AFTER IMPORT MAP -->
+  <!-- Entry Script Loader -->
   <script type="module">
     import { fetchNormalizedData } from './dataAdapter.js';
     import { render3DScatterPlot } from './threeScatter.js';
