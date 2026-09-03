@@ -31,6 +31,7 @@ def get_products():
             SELECT tcin, title, category, price, rating, review_count 
             FROM target_products 
             WHERE price IS NOT NULL
+                AND review_count IS NOT NULL
         """)
         rows = cursor.fetchall()
         conn.close()

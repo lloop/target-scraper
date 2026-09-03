@@ -64,7 +64,7 @@ def scrape_category_tcins(
                     logger.info("Captured params from a CONFIRMED 200 response")
 
         page.on("response", on_response)
-        page.goto(category_url, wait_until="networkidle")
+        page.goto(category_url, wait_until="domcontentloaded")
         page.wait_for_timeout(2000)
 
         if not captured:

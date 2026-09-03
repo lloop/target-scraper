@@ -44,7 +44,7 @@
       z-index: 100;
     }
 
-    /* Floating Legend Panel */
+    /* Floating Control & Legend Panel */
     #legend-panel {
       position: absolute;
       top: 20px;
@@ -54,17 +54,53 @@
       border: 1px solid #334155;
       border-radius: 8px;
       padding: 16px;
-      width: 240px;
+      width: 260px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.5);
       z-index: 10;
     }
     
     #legend-panel h3 {
       margin: 0 0 10px 0;
-      font-size: 14px;
+      font-size: 13px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: #94a3b8;
+    }
+
+    /* Consistent Layout Switcher Buttons */
+    .layout-switcher {
+      display: flex;
+      gap: 4px;
+      background: rgba(30, 41, 59, 0.7);
+      padding: 4px;
+      border-radius: 6px;
+      border: 1px solid #334155;
+      margin-bottom: 14px;
+    }
+
+    .layout-btn {
+      flex: 1;
+      padding: 6px 8px;
+      background: transparent;
+      color: #94a3b8;
+      border: none;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+
+    .layout-btn:hover {
+      color: #fff;
+      background: rgba(51, 65, 85, 0.5);
+    }
+
+    .layout-btn.active {
+      background: #3b82f6;
+      color: #ffffff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
     
     .legend-section {
@@ -121,13 +157,33 @@
       border-radius: 2px;
       display: inline-block;
     }
+    .cat-btn {
+      background-color: #333;
+      color: #888;
+      border: 1px solid #555;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .cat-btn.active {
+      background-color: #007acc;
+      color: #fff;
+      border-color: #0099ff;
+    }
   </style>
 </head>
 <body>
 
-  <!-- Floating HUD Index -->
+  <!-- Floating HUD Panel -->
   <div id="legend-panel">
-    <h3>Data Index</h3>
+    <h3>Layout View</h3>
+    
+    <!-- Seamless Layout Buttons -->
+    <div class="layout-switcher">
+      <button class="layout-btn active" onclick="setActiveLayout(this, 'scatter')">Scatter</button>
+      <button class="layout-btn" onclick="setActiveLayout(this, 'towers')">Towers</button>
+      <button class="layout-btn" onclick="setActiveLayout(this, 'galaxy')">Galaxy</button>
+    </div>
 
     <div class="legend-section">
       <div class="legend-title">3D Axes</div>
@@ -151,8 +207,21 @@
     </div>
   </div>
 
+  <div id="category-filter-bar" style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; gap: 8px; flex-wrap: wrap; background: rgba(0,0,0,0.6); padding: 8px; border-radius: 6px;"></div>
+
   <div id="canvas-container"></div>
   <div id="tooltip"></div>
+
+  <!-- Helper for Active Button State -->
+  <script>
+    function setActiveLayout(btnElement, layoutName) {
+      document.querySelectorAll('.layout-btn').forEach(b => b.classList.remove('active'));
+      btnElement.classList.add('active');
+      if (window.switchLayout) {
+        window.switchLayout(layoutName);
+      }
+    }
+  </script>
 
   <!-- Entry Script Loader -->
   <script type="module">

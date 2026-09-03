@@ -8,16 +8,26 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
-logger = logging.getLogger("TargetPipeline")
+logger = logging.getLogger("TargetPipeline") 
 
 # --- PIPELINE CONFIGURATION ---
 CATEGORY_URL = "https://www.target.com/c/produce-grocery/-/N-u7fty"
 CATEGORY_NAME = "produce"
-TARGET_TCIN_COUNT = 50   # Set to 0 to scrape the entire category
-STORE_ID = "3263"
-ZIP_CODE = "19107"
-DB_PATH = "target_products.db"
+TARGET_TCIN_COUNT = 0   # Set to 0 to scrape the entire category
+STORE_ID = "1443" 
+ZIP_CODE = "19148"
+DB_PATH = "data/target_products.db"
 MAX_STALE_DAYS = 30
+
+CATEGORIES = [
+    {"name": "produce", "url": "https://www.target.com/c/produce-grocery/-/N-u7fty"},
+    {"name": "bakery", "url": "https://www.target.com/c/bakery-bread-grocery/-/N-5xt19"},
+    {"name": "snacks", "url": "https://www.target.com/c/snacks-grocery/-/N-5xsy9"},
+    {"name": "frozen", "url": "https://www.target.com/c/frozen-foods-grocery/-/N-5xszd"},
+    {"name": "meat", "url": "https://www.target.com/c/fresh-meat-seafood-grocery/-/N-5xsyh"},
+    {"name": "beverages", "url": "https://www.target.com/c/beverages-grocery/-/N-5xt0r"},
+    {"name": "pantry", "url": "https://www.target.com/c/pantry-grocery/-/N-5xt13"},
+]
 
 
 def run_pipeline(
@@ -96,4 +106,9 @@ def run_pipeline(
 
 
 if __name__ == "__main__":
-    run_pipeline()
+    for cat in CATEGORIES:
+        logger.info("Processing category: %s", cat["name"])
+        run_pipeline(
+            category_url=cat["url"],
+            category_name=cat["name"]
+        )

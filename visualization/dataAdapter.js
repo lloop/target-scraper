@@ -15,7 +15,7 @@ export async function fetchNormalizedData() {
     // Map numerical values into normalized 3D space (-20 to 20 range)
     const x = ((item.price || 0) / 50) * 40 - 20;               // X: Price ($0 - $50)
     const y = (((item.rating || 0) - 1) / 4) * 30 - 15;         // Y: Rating (1 - 5 stars)
-    const z = (Math.min(item.review_count || 0, 500) / 500) * 40 - 20; // Z: Reviews (0 - 500)
+    const z = ((item.review_count || 0) / 10000) * 40 - 20; // Z: Reviews (0 - 1000+); // Z: Reviews (0 - 500)
 
     return {
       id: item.tcin,
