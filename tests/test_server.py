@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from visualization.server import app
+from visualization.app import app
 
 
 class TestServerAPI(unittest.TestCase):
