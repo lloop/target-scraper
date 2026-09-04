@@ -225,8 +225,8 @@
 
   <!-- Entry Script Loader -->
   <script type="module">
-    import { fetchNormalizedData } from './dataAdapter.js';
-    import { render3DScatterPlot } from './threeScatter.js';
+      import { fetchNormalizedData } from "{{ url_for('static', filename='js/dataAdapter.js') }}";
+      import { render3DScatterPlot } from "{{ url_for('static', filename='js/threeScatter.js') }}";
 
     async function init() {
       try {

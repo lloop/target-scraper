@@ -5,6 +5,7 @@ import os
 import traceback
 
 app = Flask(__name__)
+
 # Enable CORS for all routes and origins
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
