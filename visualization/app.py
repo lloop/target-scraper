@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template
 from flask_cors import CORS
 import sqlite3
 import os
@@ -12,6 +12,10 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # DB_PATH = os.path.abspath(os.path.join(BASE_DIR, "../database/target_products.db"))
 DB_PATH = "/home/rich/Documents/CODE_SESSIONS/Python_Freelance_Portfolio/Web_Scraping/target-scraper/data/target_products.db"
+
+@app.route('/')
+def home():
+    return render_template('index.html')  # or redirect to your visualizer
 
 @app.route("/api/products")
 def get_products():
